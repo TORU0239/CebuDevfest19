@@ -18,6 +18,15 @@
     <fragment
         android:id="@+id/cameraFragment"
         android:label="CameraFragment"
-        android:name="sg.toru.cebudevfest19.ui.fragment.CameraFragment"/>
+        android:name="sg.toru.cebudevfest19.ui.fragment.CameraFragment">
+        <action
+            android:id="@+id/action_camera_to_result"
+            app:destination="@id/resultFragment"/>
+    </fragment>
+
+    <fragment
+        android:id="@+id/resultFragment"
+        android:label="ResultFragment"
+        android:name="sg.toru.cebudevfest19.ui.fragment.ResultFragment"/>
 
 </navigation>
