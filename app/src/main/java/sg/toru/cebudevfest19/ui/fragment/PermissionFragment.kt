@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.navigation.Navigation
 
 import sg.toru.cebudevfest19.R
 
@@ -30,6 +31,8 @@ class PermissionFragment : Fragment() {
         super.onCreate(savedInstanceState)
         if(hasPermissions()){
             // Go To Camera.
+            Navigation.findNavController(requireActivity(), R.id.fragment_container)
+                .navigate(R.id.action_permission_to_camera)
         }
         else{
             requestPermissions(permissions, requestCodeForPermission)
@@ -44,7 +47,9 @@ class PermissionFragment : Fragment() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if(requestCode == requestCodeForPermission && permissions[0] == Manifest.permission.CAMERA){
             if(grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED){
-                // Go to Camera.
+                // Go To Camera.
+                Navigation.findNavController(requireActivity(), R.id.fragment_container)
+                    .navigate(R.id.action_permission_to_camera)
             }
             else{
                 Toast.makeText(context!!, "You have to grant permission to use Camera.", Toast.LENGTH_SHORT).show()
