@@ -23,4 +23,14 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintWidth_percent="0.2"
         app:layout_constraintDimensionRatio="1:1"/>
+
+    <ImageView
+        android:id="@+id/img_test"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginBottom="48dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintWidth_percent="0.2"
+        app:layout_constraintDimensionRatio="1:1"/>
 </androidx.constraintlayout.widget.ConstraintLayout>

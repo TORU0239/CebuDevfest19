@@ -1,5 +1,8 @@
 package sg.toru.cebudevfest19.ui.fragment
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.os.Bundle
 import android.util.DisplayMetrics
@@ -8,14 +11,20 @@ import android.util.Rational
 import android.util.Size
 import android.view.*
 import android.widget.ImageButton
+import android.widget.ImageView
 import androidx.fragment.app.Fragment
 import androidx.camera.core.*
+import androidx.exifinterface.media.ExifInterface
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 import sg.toru.cebudevfest19.R
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.concurrent.Executor
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -31,6 +40,9 @@ class CameraFragment : Fragment() {
 
     private lateinit var viewFinder:TextureView
 
+    // test code
+    private lateinit var imageTest: ImageView
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -45,6 +57,7 @@ class CameraFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        imageTest = view.findViewById(R.id.img_test)
         viewFinder = view.findViewById(R.id.view_finder)
         viewFinder.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             updateTransform()
@@ -60,14 +73,14 @@ class CameraFragment : Fragment() {
 
         view.findViewById<ImageButton>(R.id.btn_capture).setOnClickListener {
             imageCapture?.let { capture ->
-                capture.takePicture(executor, object:ImageCapture.OnImageCapturedListener(){
-                    override fun onCaptureSuccess(
-                        image: ImageProxy?,
-                        rotationDegrees: Int
-                    ) {
-                        super.onCaptureSuccess(image, rotationDegrees)
-                        image?.let { image ->
-
+                val file = createFile(getOutputDirectory(context!!), FILENAME, PHOTO_EXTENSION)
+                capture.takePicture(file, executor, object: ImageCapture.OnImageSavedListener {
+                    override fun onImageSaved(file: File) {
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val bitmap = decodeBitmap(file)
+                            CoroutineScope(Dispatchers.Main).launch {
+                                imageTest.setImageBitmap(bitmap)
+                            }
                         }
                     }
 
@@ -76,12 +89,93 @@ class CameraFragment : Fragment() {
                         message: String,
                         cause: Throwable?
                     ) {
-                        super.onError(imageCaptureError, message, cause)
                         cause?.printStackTrace()
                     }
                 })
+
+//                capture.takePicture(executor, object:ImageCapture.OnImageCapturedListener(){
+//                    override fun onCaptureSuccess(
+//                        image: ImageProxy?,
+//                        rotationDegrees: Int
+//                    ) {
+//                        image?.let { image ->
+//                            imageTest.setImageBitmap(transformImageProxyToBitmap(image))
+//                        }
+//                        super.onCaptureSuccess(image, rotationDegrees)
+//                    }
+//
+//                    override fun onError(
+//                        imageCaptureError: ImageCapture.ImageCaptureError,
+//                        message: String,
+//                        cause: Throwable?
+//                    ) {
+//                        super.onError(imageCaptureError, message, cause)
+//                        cause?.printStackTrace()
+//                    }
+//                })
             }
         }
+    }
+
+    private suspend fun decodeBitmap(file: File): Bitmap {
+        // First, decode EXIF data and retrieve transformation matrix
+        return withContext(CoroutineScope(Dispatchers.IO).coroutineContext) {
+            generateBitmap(file)
+        }
+    }
+
+    private fun generateBitmap(file:File):Bitmap{
+        val exif = ExifInterface(file.absolutePath)
+        val transformation = decodeExifOrientation(
+            exif.getAttributeInt(
+                ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_ROTATE_90
+            )
+        )
+
+        // Read bitmap using factory methods, and transform it using EXIF data
+        val bitmapOptions = BitmapFactory.Options().apply {
+            inSampleSize = 1
+        }
+
+        val bitmap = BitmapFactory.decodeFile(file.absolutePath, bitmapOptions)
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, transformation, true)
+    }
+
+    private fun decodeExifOrientation(orientation: Int): Matrix {
+        val matrix = Matrix()
+
+        // Apply transformation corresponding to declared EXIF orientation
+        when (orientation) {
+            ExifInterface.ORIENTATION_NORMAL -> Unit
+            ExifInterface.ORIENTATION_UNDEFINED -> Unit
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90F)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180F)
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270F)
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.postScale(-1F, 1F)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.postScale(1F, -1F)
+            ExifInterface.ORIENTATION_TRANSPOSE -> {
+                matrix.postScale(-1F, 1F)
+                matrix.postRotate(270F)
+            }
+            ExifInterface.ORIENTATION_TRANSVERSE -> {
+                matrix.postScale(-1F, 1F)
+                matrix.postRotate(90F)
+            }
+
+            // Error out if the EXIF orientation is invalid
+            else -> throw IllegalArgumentException("Invalid orientation: $orientation")
+        }
+
+        // Return the resulting matrix
+        return matrix
+    }
+
+    private fun transformImageProxyToBitmap(image:ImageProxy): Bitmap {
+        image.close()
+        val buffer = image.planes[0].buffer
+        val bytes = ByteArray(buffer.remaining())
+        buffer.get(bytes)
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
     }
     private fun updateTransform() {
         val matrix = Matrix()
@@ -138,9 +232,7 @@ class CameraFragment : Fragment() {
 
         val executor = Executors.newSingleThreadExecutor()
         imageAnalyzer = ImageAnalysis(imageAnalysisConfig).apply {
-            setAnalyzer(executor, ImageAnalysis.Analyzer { image, rotationDegrees ->
-
-            })
+            setAnalyzer(executor, ImageAnalysis.Analyzer { image, rotationDegrees -> })
         }
 
         val imageCaptureConfig = ImageCaptureConfig.Builder().apply {
@@ -227,5 +319,14 @@ class CameraFragment : Fragment() {
         private fun createFile(baseFolder: File, format: String, extension: String) =
             File(baseFolder, SimpleDateFormat(format, Locale.US)
                 .format(System.currentTimeMillis()) + extension)
+
+        /** Use external media if it is available, our app's file directory otherwise */
+        fun getOutputDirectory(context: Context): File {
+            val appContext = context.applicationContext
+            val mediaDir = context.externalMediaDirs.firstOrNull()?.let {
+                File(it, appContext.resources.getString(R.string.app_name)).apply { mkdirs() } }
+            return if (mediaDir != null && mediaDir.exists())
+                mediaDir else appContext.filesDir
+        }
     }
 }
