@@ -1,5 +1,6 @@
 package sg.toru.cebudevfest19.ui.core
 
+import android.graphics.Bitmap
 import com.google.firebase.FirebaseException
 import com.google.firebase.ml.vision.FirebaseVision
 import com.google.firebase.ml.vision.automl.FirebaseAutoMLLocalModel
@@ -22,7 +23,31 @@ class ImageClassfier
                     )
     }
 
-    fun classify(image:FirebaseVisionImage, callback:(String)->Unit){
+    fun analyze(bitmap: Bitmap, callback: (String) -> Unit){
+        labeler?.processImage(FirebaseVisionImage.fromBitmap(bitmap))?.addOnCompleteListener { label ->
+            if(label.isSuccessful) {
+                label.result?.let { labelListResult->
+                    labelListResult.sortByDescending {
+                        it.confidence
+                    }
+                    val detectedImage = labelListResult.firstOrNull {
+                        it.confidence >= 0.7F
+                    }
+                    if(detectedImage == null){
+                        callback.invoke("Detected Image Null Case!!")
+                    }
+                    else{
+                        callback.invoke(detectedImage.text)
+                    }
+                }
+            }
+        }?.addOnFailureListener { exception ->
+            exception.printStackTrace()
+
+        }
+    }
+
+    fun analyze(image:FirebaseVisionImage, callback:(String)->Unit){
         labeler?.processImage(image)?.addOnCompleteListener { label ->
             if(label.isSuccessful) {
                 label.result?.let { labelListResult->

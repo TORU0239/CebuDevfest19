@@ -3,7 +3,9 @@ package sg.toru.cebudevfest19.ui.fragment
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.graphics.Matrix
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
@@ -14,14 +16,17 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import androidx.fragment.app.Fragment
 import androidx.camera.core.*
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.lifecycleScope
+import com.google.firebase.ml.vision.common.FirebaseVisionImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 import sg.toru.cebudevfest19.R
+import sg.toru.cebudevfest19.ui.core.ImageClassfier
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -38,10 +43,15 @@ class CameraFragment : Fragment() {
     private var imageCapture: ImageCapture? = null
     private var imageAnalyzer: ImageAnalysis? = null
 
+    private lateinit var container:ConstraintLayout
     private lateinit var viewFinder:TextureView
 
     // test code
     private lateinit var imageTest: ImageView
+
+    private val imageClassifier:ImageClassfier by lazy {
+        ImageClassfier()
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -57,6 +67,7 @@ class CameraFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        container = view as ConstraintLayout
         imageTest = view.findViewById(R.id.img_test)
         viewFinder = view.findViewById(R.id.view_finder)
         viewFinder.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
@@ -74,12 +85,16 @@ class CameraFragment : Fragment() {
         view.findViewById<ImageButton>(R.id.btn_capture).setOnClickListener {
             imageCapture?.let { capture ->
                 val file = createFile(getOutputDirectory(context!!), FILENAME, PHOTO_EXTENSION)
-                capture.takePicture(file, executor, object: ImageCapture.OnImageSavedListener {
+                capture.takePicture(file, ImageCapture.Metadata(), executor, object: ImageCapture.OnImageSavedListener {
                     override fun onImageSaved(file: File) {
                         lifecycleScope.launch(Dispatchers.IO) {
                             val bitmap = decodeBitmap(file)
                             CoroutineScope(Dispatchers.Main).launch {
                                 imageTest.setImageBitmap(bitmap)
+                                // Commented, cause model hasn't completed
+//                                imageClassifier.analyze(bitmap){
+//                                    Log.e(TAG, "result is $it")
+//                                }
                             }
                         }
                     }
@@ -92,6 +107,12 @@ class CameraFragment : Fragment() {
                         cause?.printStackTrace()
                     }
                 })
+
+                container.postDelayed({
+                    container.foreground = ColorDrawable(Color.WHITE)
+                    container.postDelayed(
+                        { container.foreground = null }, ANIMATION_FAST_MILLIS)
+                }, ANIMATION_SLOW_MILLIS)
 
 
                 /**/
@@ -316,6 +337,9 @@ class CameraFragment : Fragment() {
     companion object {
         private const val FILENAME = "yyyy-MM-dd-HH-mm-ss-SSS"
         private const val PHOTO_EXTENSION = ".jpg"
+        /** Milliseconds used for UI animations */
+        private const val ANIMATION_FAST_MILLIS = 50L
+        private const val ANIMATION_SLOW_MILLIS = 100L
 
         /** Helper function used to create a timestamped file */
         private fun createFile(baseFolder: File, format: String, extension: String) =
