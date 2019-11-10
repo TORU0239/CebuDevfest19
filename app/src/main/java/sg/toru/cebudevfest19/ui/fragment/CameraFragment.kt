@@ -93,6 +93,8 @@ class CameraFragment : Fragment() {
                     }
                 })
 
+
+                /**/
 //                capture.takePicture(executor, object:ImageCapture.OnImageCapturedListener(){
 //                    override fun onCaptureSuccess(
 //                        image: ImageProxy?,

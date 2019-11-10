@@ -21,6 +21,9 @@
 			</intent-filter>
 			<meta-data android:name="android.notch_support" android:value="true"/>
 		</activity>
-	</application>
 
+		<meta-data
+			android:name="com.google.firebase.ml.vision.DEPENDENCIES"
+			android:value="label" />
+	</application>
 </manifest>
