@@ -7,10 +7,14 @@ import android.util.Log
 import android.util.Rational
 import android.util.Size
 import android.view.*
+import android.widget.ImageButton
 import androidx.fragment.app.Fragment
 import androidx.camera.core.*
 
 import sg.toru.cebudevfest19.R
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 import java.util.concurrent.Executor
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -35,6 +39,10 @@ class CameraFragment : Fragment() {
         return inflater.inflate(R.layout.fragment_camera, container, false)
     }
 
+    private val executor:ExecutorService by lazy {
+        Executors.newSingleThreadExecutor()
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         viewFinder = view.findViewById(R.id.view_finder)
@@ -49,8 +57,32 @@ class CameraFragment : Fragment() {
             // That's all!! by doing this, CameraX can follow UI Lifecycle.
             CameraX.bindToLifecycle(activity, preview, imageCapture, imageAnalyzer)
         }
-    }
 
+        view.findViewById<ImageButton>(R.id.btn_capture).setOnClickListener {
+            imageCapture?.let { capture ->
+                capture.takePicture(executor, object:ImageCapture.OnImageCapturedListener(){
+                    override fun onCaptureSuccess(
+                        image: ImageProxy?,
+                        rotationDegrees: Int
+                    ) {
+                        super.onCaptureSuccess(image, rotationDegrees)
+                        image?.let { image ->
+
+                        }
+                    }
+
+                    override fun onError(
+                        imageCaptureError: ImageCapture.ImageCaptureError,
+                        message: String,
+                        cause: Throwable?
+                    ) {
+                        super.onError(imageCaptureError, message, cause)
+                        cause?.printStackTrace()
+                    }
+                })
+            }
+        }
+    }
     private fun updateTransform() {
         val matrix = Matrix()
 
@@ -185,5 +217,15 @@ class CameraFragment : Fragment() {
     override fun onDestroyView() {
         CameraX.unbindAll()
         super.onDestroyView()
+    }
+
+    companion object {
+        private const val FILENAME = "yyyy-MM-dd-HH-mm-ss-SSS"
+        private const val PHOTO_EXTENSION = ".jpg"
+
+        /** Helper function used to create a timestamped file */
+        private fun createFile(baseFolder: File, format: String, extension: String) =
+            File(baseFolder, SimpleDateFormat(format, Locale.US)
+                .format(System.currentTimeMillis()) + extension)
     }
 }
