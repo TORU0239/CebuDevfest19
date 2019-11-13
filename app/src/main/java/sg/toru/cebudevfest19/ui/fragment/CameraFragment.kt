@@ -14,6 +14,7 @@ import android.util.Size
 import android.view.*
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.camera.core.*
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -82,6 +83,7 @@ class CameraFragment : Fragment() {
             CameraX.bindToLifecycle(activity, preview, imageCapture, imageAnalyzer)
         }
 
+        var result = ""
         view.findViewById<ImageButton>(R.id.btn_capture).setOnClickListener {
             imageCapture?.let { capture ->
                 val file = createFile(getOutputDirectory(context!!), FILENAME, PHOTO_EXTENSION)
@@ -89,11 +91,11 @@ class CameraFragment : Fragment() {
                     override fun onImageSaved(file: File) {
                         lifecycleScope.launch(Dispatchers.IO) {
                             val bitmap = decodeBitmap(file)
-                            CoroutineScope(Dispatchers.Main).launch {
-                                imageTest.setImageBitmap(bitmap)
-                                // Commented, cause model hasn't completed
-                                imageClassifier.analyze(bitmap){
-                                    Log.e(TAG, "result is $it")
+                            imageClassifier.analyze(bitmap){
+                                Log.e(TAG, "result is $it")
+                                result = it
+                                CoroutineScope(Dispatchers.Main).launch {
+                                    Toast.makeText(context, "result is $result !!!", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         }
@@ -151,7 +153,8 @@ class CameraFragment : Fragment() {
         val exif = ExifInterface(file.absolutePath)
         val transformation = decodeExifOrientation(
             exif.getAttributeInt(
-                ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_ROTATE_90
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_ROTATE_90
             )
         )
 

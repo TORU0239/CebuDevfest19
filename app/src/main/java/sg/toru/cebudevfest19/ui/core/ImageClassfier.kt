@@ -21,11 +21,11 @@ class ImageClassfier
             .setAssetFilePath("manifest.json")
             .build()
         labeler = FirebaseVision.getInstance()
-                    .getOnDeviceAutoMLImageLabeler(
-                        FirebaseVisionOnDeviceAutoMLImageLabelerOptions.Builder(firebaseAutoMLLocalModel)
-                            .setConfidenceThreshold(0.7F)
-                            .build()
-                    )
+            .getOnDeviceAutoMLImageLabeler(
+                FirebaseVisionOnDeviceAutoMLImageLabelerOptions.Builder(firebaseAutoMLLocalModel)
+                    .setConfidenceThreshold(0.5F)
+                    .build()
+            )
     }
 
     fun analyze(bitmap: Bitmap, callback: (String) -> Unit){
@@ -40,7 +40,7 @@ class ImageClassfier
                         it.confidence
                     }
                     val detectedImage = labelListResult.firstOrNull {
-                        it.confidence >= 0.6F
+                        it.confidence >= 0.5F
                     }
                     if(detectedImage == null){
                         callback.invoke("Detected Image Null Case!!")
