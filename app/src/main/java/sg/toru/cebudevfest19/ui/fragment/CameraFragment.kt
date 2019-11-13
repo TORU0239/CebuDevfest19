@@ -92,9 +92,9 @@ class CameraFragment : Fragment() {
                             CoroutineScope(Dispatchers.Main).launch {
                                 imageTest.setImageBitmap(bitmap)
                                 // Commented, cause model hasn't completed
-//                                imageClassifier.analyze(bitmap){
-//                                    Log.e(TAG, "result is $it")
-//                                }
+                                imageClassifier.analyze(bitmap){
+                                    Log.e(TAG, "result is $it")
+                                }
                             }
                         }
                     }
