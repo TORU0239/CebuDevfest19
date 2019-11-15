@@ -22,9 +22,10 @@
         <TextView
             android:id="@+id/txt_result"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
+            android:layout_height="match_parent"
             android:layout_marginTop="16dp"
+            android:paddingStart="10dp"
+            android:gravity="center"
             tools:text="Lechon!"
             android:fontFamily="@font/product_sans_regular"
             android:textSize="30sp"
