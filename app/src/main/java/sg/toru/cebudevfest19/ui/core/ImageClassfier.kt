@@ -40,7 +40,7 @@ class ImageClassfier
                         it.confidence
                     }
                     val detectedImage = labelListResult.firstOrNull {
-                        it.confidence >= 0.5F
+                        it.confidence >= 0.65F
                     }
                     if(detectedImage == null){
                         callback.invoke("Please scan again!")
@@ -50,7 +50,7 @@ class ImageClassfier
                             callback.invoke("Bulalo")
                         }
                         else{
-                            callback.invoke(detectedImage.text)
+                            callback.invoke(detectedImage.text.capitalize())
                         }
 
                     }

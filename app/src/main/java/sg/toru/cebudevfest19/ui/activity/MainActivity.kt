@@ -17,9 +17,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        container.postDelayed({
-            container.systemUiVisibility = FLAGS_FULLSCREEN
-        }, 500L)
+//        container.postDelayed({
+//            container.systemUiVisibility = FLAGS_FULLSCREEN
+//        }, 500L)
     }
 }
 

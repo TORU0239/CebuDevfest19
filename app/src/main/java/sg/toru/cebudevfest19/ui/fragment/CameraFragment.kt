@@ -47,11 +47,12 @@ class CameraFragment : Fragment() {
     private lateinit var container:ConstraintLayout
     private lateinit var viewFinder:TextureView
 
-    // test code
-    private lateinit var imageTest: ImageView
-
     private val imageClassifier:ImageClassfier by lazy {
         ImageClassfier()
+    }
+
+    private val executor:ExecutorService by lazy {
+        Executors.newSingleThreadExecutor()
     }
 
     override fun onCreateView(
@@ -62,14 +63,9 @@ class CameraFragment : Fragment() {
         return inflater.inflate(R.layout.fragment_camera, container, false)
     }
 
-    private val executor:ExecutorService by lazy {
-        Executors.newSingleThreadExecutor()
-    }
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         container = view as ConstraintLayout
-        imageTest = view.findViewById(R.id.img_test)
         viewFinder = view.findViewById(R.id.view_finder)
         viewFinder.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             updateTransform()
@@ -95,7 +91,9 @@ class CameraFragment : Fragment() {
                                 Log.e(TAG, "result is $it")
                                 result = it
                                 CoroutineScope(Dispatchers.Main).launch {
-                                    Toast.makeText(context, "result is $result !!!", Toast.LENGTH_SHORT).show()
+                                    fragmentManager?.let {
+                                        ResultFragment.show(it, result)
+                                    }
                                 }
                             }
                         }
@@ -140,6 +138,26 @@ class CameraFragment : Fragment() {
 //                })
             }
         }
+    }
+
+    override fun onPause() {
+        CameraX.unbindAll()
+        super.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        fragmentManager?.let {
+            ResultFragment.dismiss(it)
+        }
+        if(preview != null && imageCapture != null && imageAnalyzer != null){
+            CameraX.bindToLifecycle(activity, preview, imageCapture, imageAnalyzer)
+        }
+    }
+
+    override fun onDestroyView() {
+        CameraX.unbindAll()
+        super.onDestroyView()
     }
 
     private suspend fun decodeBitmap(file: File): Bitmap {
@@ -332,11 +350,6 @@ class CameraFragment : Fragment() {
             setTargetRotation(viewFinder.display.rotation)
         }.build()
         imageCapture = ImageCapture(imageCaptureConfig)
-    }
-
-    override fun onDestroyView() {
-        CameraX.unbindAll()
-        super.onDestroyView()
     }
 
     companion object {
