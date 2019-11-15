@@ -43,10 +43,16 @@ class ImageClassfier
                         it.confidence >= 0.5F
                     }
                     if(detectedImage == null){
-                        callback.invoke("Detected Image Null Case!!")
+                        callback.invoke("Please scan again!")
                     }
                     else{
-                        callback.invoke(detectedImage.text)
+                        if(detectedImage.text == "pochero"){
+                            callback.invoke("Bulalo")
+                        }
+                        else{
+                            callback.invoke(detectedImage.text)
+                        }
+
                     }
                 }
             }

@@ -326,7 +326,9 @@ class CameraFragment : Fragment() {
         val imageCaptureConfig = ImageCaptureConfig.Builder().apply {
             setLensFacing(CameraX.LensFacing.BACK) // CameraX.LensFacing.BACK or FRONT
             setCaptureMode(ImageCapture.CaptureMode.MIN_LATENCY) // MIN_LATENCY or MAX_QUALITY
-            setTargetResolution(Size(metrics.widthPixels, metrics.heightPixels)) // setTargetResolution or setTargetAspectRatio. it is changed at this version
+//            setTargetResolution(Size(metrics.widthPixels, metrics.heightPixels)) // setTargetResolution or setTargetAspectRatio. it is changed at this version
+
+            setTargetResolution(Size(600,800)) // setTargetResolution or setTargetAspectRatio. it is changed at this version
             setTargetRotation(viewFinder.display.rotation)
         }.build()
         imageCapture = ImageCapture(imageCaptureConfig)
