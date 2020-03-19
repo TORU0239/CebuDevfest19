@@ -1,36 +1,30 @@
 package sg.toru.cebudevfest19.ui.fragment
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Color
 import android.graphics.Matrix
-import android.graphics.drawable.ColorDrawable
 import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
-import android.util.Rational
-import android.util.Size
-import android.view.*
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageButton
-import android.widget.ImageView
-import android.widget.Toast
-import androidx.fragment.app.Fragment
 import androidx.camera.core.*
-import androidx.camera.core.impl.PreviewConfig
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.exifinterface.media.ExifInterface
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
-import com.google.firebase.ml.vision.common.FirebaseVisionImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
 import sg.toru.cebudevfest19.R
 import sg.toru.cebudevfest19.ui.core.ImageClassfier
 import java.io.File
@@ -95,21 +89,29 @@ class CameraFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         container = view as ConstraintLayout
         viewFinder = view.findViewById(R.id.view_finder)
-//        viewFinder.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-//            updateTransform()
-//        }
+        updateCameraUi()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        updateCameraUi()
+    }
+
+    private var result = ""
+
+    private fun updateCameraUi() {
         viewFinder.post {
             displayId = viewFinder.display.displayId
             bindUseCases()
-
-            // That's all!! by doing this, CameraX can follow UI Lifecycle.
-            // API has been changed/
-//            CameraX.bindToLifecycle(viewLifecycleOwner, preview, imageCapture, imageAnalyzer)
         }
 
-        var result = ""
-        view.findViewById<ImageButton>(R.id.btn_capture).setOnClickListener {
-//            imageCapture?.let { capture ->
+        container.findViewById<ImageButton>(R.id.btn_capture).setOnClickListener {
+            takePicture()
+        }
+    }
+
+    private fun oldTakePicture() {
+        //            imageCapture?.let { capture ->
 //                val file = createFile(getOutputDirectory(context!!), FILENAME, PHOTO_EXTENSION)
 //                capture.takePicture(file, ImageCapture.Metadata(), executor, object: ImageCapture.OnImageSavedListener {
 //                    override fun onImageSaved(file: File) {
@@ -142,6 +144,49 @@ class CameraFragment : Fragment() {
 //                        { container.foreground = null }, ANIMATION_FAST_MILLIS)
 //                }, ANIMATION_SLOW_MILLIS)
 //            }
+    }
+    
+    private fun takePicture() {
+        imageCapture?.let { imageCapture ->
+            val file = createFile(getOutputDirectory(context!!), FILENAME, PHOTO_EXTENSION)
+            val metaData = ImageCapture.Metadata().apply {
+                isReversedHorizontal = (lensFacing == CameraSelector.LENS_FACING_FRONT)
+            }
+            val outputOptions = ImageCapture.OutputFileOptions.Builder(file)
+                .setMetadata(metaData)
+                .build()
+
+            // setup image capture
+            imageCapture.takePicture(
+                outputOptions,
+                executor,
+                object:ImageCapture.OnImageSavedCallback {
+                    override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val bitmap = decodeBitmap(file)
+                            imageClassifier.analyze(bitmap){
+                                Log.e(TAG, "result is $it")
+                                result = it
+                                CoroutineScope(Dispatchers.Main).launch {
+                                    fragmentManager?.let {
+                                        ResultFragment.show(it, result)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    override fun onError(exception: ImageCaptureException) {
+                        when (exception.imageCaptureError) {
+                            ImageCapture.ERROR_UNKNOWN -> {}
+                            ImageCapture.ERROR_FILE_IO -> {}
+                            ImageCapture.ERROR_CAPTURE_FAILED -> {}
+                            ImageCapture.ERROR_CAMERA_CLOSED-> {}
+                            ImageCapture.ERROR_INVALID_CAMERA-> {}
+                        }
+                        exception.printStackTrace()
+                    }
+            })
         }
     }
 
