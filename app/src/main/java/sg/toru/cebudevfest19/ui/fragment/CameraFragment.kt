@@ -1,31 +1,30 @@
 package sg.toru.cebudevfest19.ui.fragment
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Color
 import android.graphics.Matrix
-import android.graphics.drawable.ColorDrawable
+import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
-import android.util.Rational
-import android.util.Size
-import android.view.*
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageButton
-import android.widget.ImageView
-import android.widget.Toast
-import androidx.fragment.app.Fragment
 import androidx.camera.core.*
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.content.ContextCompat
 import androidx.exifinterface.media.ExifInterface
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
-import com.google.firebase.ml.vision.common.FirebaseVisionImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
 import sg.toru.cebudevfest19.R
 import sg.toru.cebudevfest19.ui.core.ImageClassfier
 import java.io.File
@@ -33,6 +32,9 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * A simple [Fragment] subclass.
@@ -40,12 +42,15 @@ import java.util.concurrent.Executors
 class CameraFragment : Fragment() {
     private val TAG = "CameraFragment"
 
+    private var lensFacing = CameraSelector.LENS_FACING_BACK
+    private var displayId: Int = -1
     private var preview:Preview? = null
     private var imageCapture: ImageCapture? = null
     private var imageAnalyzer: ImageAnalysis? = null
+    private var camera:Camera? = null
 
     private lateinit var container:ConstraintLayout
-    private lateinit var viewFinder:TextureView
+    private lateinit var viewFinder:PreviewView
 
     private val imageClassifier:ImageClassfier by lazy {
         ImageClassfier()
@@ -53,6 +58,23 @@ class CameraFragment : Fragment() {
 
     private val executor:ExecutorService by lazy {
         Executors.newSingleThreadExecutor()
+    }
+
+    private val displayManager:DisplayManager by lazy {
+        requireContext().getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+    }
+
+    private val displayListener = object:DisplayManager.DisplayListener {
+        override fun onDisplayChanged(displayId: Int) = view?.let { view ->
+            if (displayId == this@CameraFragment.displayId) {
+                imageCapture?.targetRotation = view.display.rotation
+                imageAnalyzer?.targetRotation = view.display.rotation
+            }
+        } ?: Unit
+
+        override fun onDisplayAdded(displayId: Int) = Unit
+
+        override fun onDisplayRemoved(displayId: Int) = Unit
     }
 
     override fun onCreateView(
@@ -67,64 +89,44 @@ class CameraFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         container = view as ConstraintLayout
         viewFinder = view.findViewById(R.id.view_finder)
-        viewFinder.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            updateTransform()
-        }
+        updateCameraUi()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        updateCameraUi()
+    }
+
+    private var result = ""
+
+    private fun updateCameraUi() {
         viewFinder.post {
-            bindPreviewUseCase()
-            bindImageAnalysisUseCase()
-            bindImageCaptureUseCase()
-
-            // That's all!! by doing this, CameraX can follow UI Lifecycle.
-            CameraX.bindToLifecycle(activity, preview, imageCapture, imageAnalyzer)
+            displayId = viewFinder.display.displayId
+            bindUseCases()
         }
 
-        var result = ""
-        view.findViewById<ImageButton>(R.id.btn_capture).setOnClickListener {
-            imageCapture?.let { capture ->
-                val file = createFile(getOutputDirectory(context!!), FILENAME, PHOTO_EXTENSION)
-                capture.takePicture(file, ImageCapture.Metadata(), executor, object: ImageCapture.OnImageSavedListener {
-                    override fun onImageSaved(file: File) {
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            val bitmap = decodeBitmap(file)
-                            imageClassifier.analyze(bitmap){
-                                Log.e(TAG, "result is $it")
-                                result = it
-                                CoroutineScope(Dispatchers.Main).launch {
-                                    fragmentManager?.let {
-                                        ResultFragment.show(it, result)
-                                    }
-                                }
-                            }
-                        }
-                    }
+        container.findViewById<ImageButton>(R.id.btn_capture).setOnClickListener {
+            takePicture()
+        }
+    }
 
-                    override fun onError(
-                        imageCaptureError: ImageCapture.ImageCaptureError,
-                        message: String,
-                        cause: Throwable?
-                    ) {
-                        cause?.printStackTrace()
-                    }
-                })
-
-                container.postDelayed({
-                    container.foreground = ColorDrawable(Color.WHITE)
-                    container.postDelayed(
-                        { container.foreground = null }, ANIMATION_FAST_MILLIS)
-                }, ANIMATION_SLOW_MILLIS)
-
-
-                /**/
-//                capture.takePicture(executor, object:ImageCapture.OnImageCapturedListener(){
-//                    override fun onCaptureSuccess(
-//                        image: ImageProxy?,
-//                        rotationDegrees: Int
-//                    ) {
-//                        image?.let { image ->
-//                            imageTest.setImageBitmap(transformImageProxyToBitmap(image))
+    private fun oldTakePicture() {
+        //            imageCapture?.let { capture ->
+//                val file = createFile(getOutputDirectory(context!!), FILENAME, PHOTO_EXTENSION)
+//                capture.takePicture(file, ImageCapture.Metadata(), executor, object: ImageCapture.OnImageSavedListener {
+//                    override fun onImageSaved(file: File) {
+//                        lifecycleScope.launch(Dispatchers.IO) {
+//                            val bitmap = decodeBitmap(file)
+//                            imageClassifier.analyze(bitmap){
+//                                Log.e(TAG, "result is $it")
+//                                result = it
+//                                CoroutineScope(Dispatchers.Main).launch {
+//                                    fragmentManager?.let {
+//                                        ResultFragment.show(it, result)
+//                                    }
+//                                }
+//                            }
 //                        }
-//                        super.onCaptureSuccess(image, rotationDegrees)
 //                    }
 //
 //                    override fun onError(
@@ -132,17 +134,58 @@ class CameraFragment : Fragment() {
 //                        message: String,
 //                        cause: Throwable?
 //                    ) {
-//                        super.onError(imageCaptureError, message, cause)
 //                        cause?.printStackTrace()
 //                    }
 //                })
-            }
-        }
+//
+//                container.postDelayed({
+//                    container.foreground = ColorDrawable(Color.WHITE)
+//                    container.postDelayed(
+//                        { container.foreground = null }, ANIMATION_FAST_MILLIS)
+//                }, ANIMATION_SLOW_MILLIS)
+//            }
     }
+    
+    private fun takePicture() {
+        imageCapture?.let { imageCapture ->
+            val file = createFile(getOutputDirectory(context!!), FILENAME, PHOTO_EXTENSION)
+            val metaData = ImageCapture.Metadata().apply {
+                isReversedHorizontal = (lensFacing == CameraSelector.LENS_FACING_FRONT)
+            }
+            val outputOptions = ImageCapture.OutputFileOptions.Builder(file)
+                .setMetadata(metaData)
+                .build()
 
-    override fun onPause() {
-        CameraX.unbindAll()
-        super.onPause()
+            // setup image capture
+            imageCapture.takePicture(
+                outputOptions,
+                executor,
+                object:ImageCapture.OnImageSavedCallback {
+                    override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val bitmap = decodeBitmap(file)
+                            imageClassifier.analyze(bitmap){
+                                Log.e(TAG, "result is $it")
+                                result = it
+                                CoroutineScope(Dispatchers.Main).launch {
+                                    ResultFragment.show(childFragmentManager, result)
+                                }
+                            }
+                        }
+                    }
+
+                    override fun onError(exception: ImageCaptureException) {
+                        when (exception.imageCaptureError) {
+                            ImageCapture.ERROR_UNKNOWN -> {}
+                            ImageCapture.ERROR_FILE_IO -> {}
+                            ImageCapture.ERROR_CAPTURE_FAILED -> {}
+                            ImageCapture.ERROR_CAMERA_CLOSED-> {}
+                            ImageCapture.ERROR_INVALID_CAMERA-> {}
+                        }
+                        exception.printStackTrace()
+                    }
+            })
+        }
     }
 
     override fun onResume() {
@@ -150,13 +193,13 @@ class CameraFragment : Fragment() {
         fragmentManager?.let {
             ResultFragment.dismiss(it)
         }
-        if(preview != null && imageCapture != null && imageAnalyzer != null){
-            CameraX.bindToLifecycle(activity, preview, imageCapture, imageAnalyzer)
-        }
+//        if(preview != null && imageCapture != null && imageAnalyzer != null){
+//            CameraX.bindToLifecycle(viewLifecycleOwner, preview, imageCapture, imageAnalyzer)
+//        }
     }
 
     override fun onDestroyView() {
-        CameraX.unbindAll()
+        executor.shutdown()
         super.onDestroyView()
     }
 
@@ -214,143 +257,194 @@ class CameraFragment : Fragment() {
         return matrix
     }
 
-    private fun transformImageProxyToBitmap(image:ImageProxy): Bitmap {
-        image.close()
-        val buffer = image.planes[0].buffer
-        val bytes = ByteArray(buffer.remaining())
-        buffer.get(bytes)
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-    }
-    private fun updateTransform() {
-        val matrix = Matrix()
+//    private fun transformImageProxyToBitmap(image:ImageProxy): Bitmap {
+//        image.close()
+//        val buffer = image.planes[0].buffer
+//        val bytes = ByteArray(buffer.remaining())
+//        buffer.get(bytes)
+//        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+//    }
+//    private fun updateTransform() {
+//        val matrix = Matrix()
+//
+//        // Compute the center of the view finder
+//        val centerX = viewFinder.width / 2f
+//        val centerY = viewFinder.height / 2f
+//
+//        // Correct preview output to account for display rotation
+//        val rotationDegrees = when(viewFinder.display.rotation) {
+//            Surface.ROTATION_0 -> 0
+//            Surface.ROTATION_90 -> 90
+//            Surface.ROTATION_180 -> 180
+//            Surface.ROTATION_270 -> 270
+//            else -> return
+//        }
+//        matrix.postRotate(-rotationDegrees.toFloat(), centerX, centerY)
+//
+//        // Finally, apply transformations to our TextureView
+//        viewFinder.setTransform(matrix)
+//    }
 
-        // Compute the center of the view finder
-        val centerX = viewFinder.width / 2f
-        val centerY = viewFinder.height / 2f
-
-        // Correct preview output to account for display rotation
-        val rotationDegrees = when(viewFinder.display.rotation) {
-            Surface.ROTATION_0 -> 0
-            Surface.ROTATION_90 -> 90
-            Surface.ROTATION_180 -> 180
-            Surface.ROTATION_270 -> 270
-            else -> return
+    private fun aspectRatio(width: Int, height: Int): Int {
+        val previewRatio = max(width, height).toDouble() / min(width, height)
+        if (abs(previewRatio - RATIO_4_3_VALUE) <= abs(previewRatio - RATIO_16_9_VALUE)) {
+            return AspectRatio.RATIO_4_3
         }
-        matrix.postRotate(-rotationDegrees.toFloat(), centerX, centerY)
-
-        // Finally, apply transformations to our TextureView
-        viewFinder.setTransform(matrix)
+        return AspectRatio.RATIO_16_9
     }
 
     private fun bindUseCases(){
         val metrics = DisplayMetrics().also { viewFinder.display.getRealMetrics(it) }
-        val screenAspectRatio = Rational(metrics.widthPixels, metrics.heightPixels)
+        val screenAspectRatio = aspectRatio(metrics.widthPixels, metrics.heightPixels)
         Log.d(TAG, "Screen metrics: ${metrics.widthPixels} x ${metrics.heightPixels}")
+        val rotation = viewFinder.display.rotation
 
-        val previewConfig = PreviewConfig.Builder().apply {
-            setLensFacing(CameraX.LensFacing.BACK)
-            setTargetResolution(Size(metrics.widthPixels,metrics.heightPixels))
-            setTargetRotation(viewFinder.display.rotation)
-        }.build()
+        // CameraProvider to the LifecycleOwner
+        val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
 
-        val preview = Preview(previewConfig)
-        preview.setOnPreviewOutputUpdateListener {
-            val parent = viewFinder.parent as ViewGroup
-            parent.removeView(viewFinder)
-            parent.addView(viewFinder, 0)
-            viewFinder.surfaceTexture = it.surfaceTexture
-            updateTransform()
-        }
+        cameraProviderFuture.addListener(Runnable {
+            // Initializing Camera Provider
+            val cameraProvider:ProcessCameraProvider = cameraProviderFuture.get()
 
-        val imageAnalysisConfig = ImageAnalysisConfig.Builder().apply {
-            setLensFacing(CameraX.LensFacing.BACK)
-            setImageReaderMode(ImageAnalysis.ImageReaderMode.ACQUIRE_LATEST_IMAGE)
-            setTargetRotation(viewFinder.display.rotation)
-        }.build()
+            // New Preview
+            preview = Preview.Builder()
+                .setTargetAspectRatio(screenAspectRatio)
+                .setTargetRotation(rotation)
+                .build()
+            preview?.setSurfaceProvider(viewFinder.previewSurfaceProvider)
+
+            // Old Preview
+//            val previewConfig = PreviewConfig.Builder().apply {
+//            setLensFacing(CameraX.LensFacing.BACK)
+//            setTargetResolution(Size(metrics.widthPixels,metrics.heightPixels))
+//            setTargetRotation(viewFinder.display.rotation)
+//        }.build()
+//
+//        val preview = Preview(previewConfig)
+//        preview.setOnPreviewOutputUpdateListener {
+//            val parent = viewFinder.parent as ViewGroup
+//            parent.removeView(viewFinder)
+//            parent.addView(viewFinder, 0)
+//            viewFinder.surfaceTexture = it.surfaceTexture
+//            updateTransform()
+//        }
 
 
-        // This is changed API at Alpha06. you were only supposed to declare Analyzer itself.
-        // but from alpha, we have to generate and put executor into setAnalyzer.
-        // What is ImageProxy?
-        // What is Analyzer?
+            // Image Analysis
+            imageAnalyzer = ImageAnalysis.Builder()
+                .setTargetAspectRatio(screenAspectRatio)
+                .setTargetRotation(rotation)
+                .build()
 
-        val executor = Executors.newSingleThreadExecutor()
-        imageAnalyzer = ImageAnalysis(imageAnalysisConfig).apply {
-            setAnalyzer(executor, ImageAnalysis.Analyzer { image, rotationDegrees -> })
-        }
 
-        val imageCaptureConfig = ImageCaptureConfig.Builder().apply {
-            setLensFacing(CameraX.LensFacing.BACK) // CameraX.LensFacing.BACK or FRONT
-            setCaptureMode(ImageCapture.CaptureMode.MIN_LATENCY) // MIN_LATENCY or MAX_QUALITY
-            setTargetResolution(Size(metrics.widthPixels, metrics.heightPixels)) // setTargetResolution or setTargetAspectRatio. it is changed at this version
-            setTargetRotation(viewFinder.display.rotation)
-        }.build()
-        imageCapture = ImageCapture(imageCaptureConfig)
+            // Old Image Analysis
+//            val imageAnalysisConfig = ImageAnalysisConfig.Builder().apply {
+//            setLensFacing(CameraX.LensFacing.BACK)
+//            setImageReaderMode(ImageAnalysis.ImageReaderMode.ACQUIRE_LATEST_IMAGE)
+//            setTargetRotation(viewFinder.display.rotation)
+//            }.build()
+//            val executor = Executors.newSingleThreadExecutor()
+//            imageAnalyzer = ImageAnalysis(imageAnalysisConfig).apply {
+//            setAnalyzer(executor, ImageAnalysis.Analyzer { image, rotationDegrees -> })
+//            }
+
+            // This is changed API at Alpha06. you were only supposed to declare Analyzer itself.
+            // but from alpha, we have to generate and put executor into setAnalyzer.
+            // What is ImageProxy?
+            // What is Analyzer?
+
+            // Image Capture
+            imageCapture = ImageCapture.Builder()
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                .setTargetAspectRatio(screenAspectRatio)
+                .setTargetRotation(rotation)
+                .build()
+
+            // Old Image Capture
+//        val imageCaptureConfig = ImageCaptureConfig.Builder().apply {
+//            setLensFacing(CameraX.LensFacing.BACK) // CameraX.LensFacing.BACK or FRONT
+//            setCaptureMode(ImageCapture.CaptureMode.MIN_LATENCY) // MIN_LATENCY or MAX_QUALITY
+//            setTargetResolution(Size(metrics.widthPixels, metrics.heightPixels)) // setTargetResolution or setTargetAspectRatio. it is changed at this version
+//            setTargetRotation(viewFinder.display.rotation)
+//        }.build()
+//        imageCapture = ImageCapture(imageCaptureConfig)
+
+            // Must unbind the use-cases before rebinding them
+            cameraProvider.unbindAll()
+
+            try {
+                camera = cameraProvider.bindToLifecycle(viewLifecycleOwner, cameraSelector, preview, imageCapture, imageAnalyzer)
+            } catch (e:Exception) {
+                e.printStackTrace()
+            }
+        }, ContextCompat.getMainExecutor(requireContext()))
 
         // That's all!! by doing this, CameraX can follow UI Lifecycle.
-        CameraX.bindToLifecycle(activity, preview, imageCapture, imageAnalyzer)
+//        CameraX.bindToLifecycle(activity, preview, imageCapture, imageAnalyzer)
     }
 
-    private fun bindPreviewUseCase(){
-        val metrics = DisplayMetrics().also { viewFinder.display.getRealMetrics(it) }
-        val screenAspectRatio = Rational(metrics.widthPixels, metrics.heightPixels)
-        Log.d(TAG, "Screen metrics: ${metrics.widthPixels} x ${metrics.heightPixels}")
-
-        val previewConfig = PreviewConfig.Builder().apply {
-            setLensFacing(CameraX.LensFacing.BACK)
-            setTargetResolution(Size(metrics.widthPixels,metrics.heightPixels))
-            setTargetRotation(viewFinder.display.rotation)
-        }.build()
-
-        preview = Preview(previewConfig)
-        preview?.setOnPreviewOutputUpdateListener {
-            val parent = viewFinder.parent as ViewGroup
-            parent.removeView(viewFinder)
-            parent.addView(viewFinder, 0)
-            viewFinder.surfaceTexture = it.surfaceTexture
-            updateTransform()
-        }
-    }
-
-    private fun bindImageAnalysisUseCase(){
-        val metrics = DisplayMetrics().also { viewFinder.display.getRealMetrics(it) }
-        val screenAspectRatio = Rational(metrics.widthPixels, metrics.heightPixels)
-        Log.d(TAG, "Screen metrics: ${metrics.widthPixels} x ${metrics.heightPixels}")
-        val imageAnalysisConfig = ImageAnalysisConfig.Builder().apply {
-            setLensFacing(CameraX.LensFacing.BACK)
-            setImageReaderMode(ImageAnalysis.ImageReaderMode.ACQUIRE_LATEST_IMAGE)
-            setTargetRotation(viewFinder.display.rotation)
-        }.build()
-
-
-        // This is changed API at Alpha06. you were only supposed to declare Analyzer itself.
-        // but from alpha, we have to generate and put executor into setAnalyzer.
-        // What is ImageProxy?
-        // What is Analyzer?
-
-        val executor = Executors.newSingleThreadExecutor()
-        imageAnalyzer = ImageAnalysis(imageAnalysisConfig).apply {
-            setAnalyzer(executor, ImageAnalysis.Analyzer { image, rotationDegrees ->
-
-            })
-        }
-    }
-
-    private fun bindImageCaptureUseCase(){
-        val metrics = DisplayMetrics().also { viewFinder.display.getRealMetrics(it) }
-        val screenAspectRatio = Rational(metrics.widthPixels, metrics.heightPixels)
-        Log.d(TAG, "Screen metrics: ${metrics.widthPixels} x ${metrics.heightPixels}")
-
-        val imageCaptureConfig = ImageCaptureConfig.Builder().apply {
-            setLensFacing(CameraX.LensFacing.BACK) // CameraX.LensFacing.BACK or FRONT
-            setCaptureMode(ImageCapture.CaptureMode.MIN_LATENCY) // MIN_LATENCY or MAX_QUALITY
-//            setTargetResolution(Size(metrics.widthPixels, metrics.heightPixels)) // setTargetResolution or setTargetAspectRatio. it is changed at this version
-
-            setTargetResolution(Size(600,800)) // setTargetResolution or setTargetAspectRatio. it is changed at this version
-            setTargetRotation(viewFinder.display.rotation)
-        }.build()
-        imageCapture = ImageCapture(imageCaptureConfig)
-    }
+//    private fun bindPreviewUseCase(){
+//        val metrics = DisplayMetrics().also { viewFinder.display.getRealMetrics(it) }
+//        val screenAspectRatio = Rational(metrics.widthPixels, metrics.heightPixels)
+//        Log.d(TAG, "Screen metrics: ${metrics.widthPixels} x ${metrics.heightPixels}")
+//
+//        val previewConfig = PreviewConfig.Builder().apply {
+//            setLensFacing(CameraX.LensFacing.BACK)
+//            setTargetResolution(Size(metrics.widthPixels,metrics.heightPixels))
+//            setTargetRotation(viewFinder.display.rotation)
+//        }.build()
+//
+//        preview = Preview(previewConfig)
+//
+//        preview?.setOnPreviewOutputUpdateListener {
+//            val parent = viewFinder.parent as ViewGroup
+//            parent.removeView(viewFinder)
+//            parent.addView(viewFinder, 0)
+//            viewFinder.surfaceTexture = it.surfaceTexture
+//            updateTransform()
+//        }
+//    }
+//
+//    private fun bindImageAnalysisUseCase(){
+//        val metrics = DisplayMetrics().also { viewFinder.display.getRealMetrics(it) }
+//        val screenAspectRatio = Rational(metrics.widthPixels, metrics.heightPixels)
+//        Log.d(TAG, "Screen metrics: ${metrics.widthPixels} x ${metrics.heightPixels}")
+//        val imageAnalysisConfig = ImageAnalysisConfig.Builder().apply {
+//            setLensFacing(CameraX.LensFacing.BACK)
+//            setImageReaderMode(ImageAnalysis.ImageReaderMode.ACQUIRE_LATEST_IMAGE)
+//            setTargetRotation(viewFinder.display.rotation)
+//        }.build()
+//
+//
+//        // This is changed API at Alpha06. you were only supposed to declare Analyzer itself.
+//        // but from alpha, we have to generate and put executor into setAnalyzer.
+//        // What is ImageProxy?
+//        // What is Analyzer?
+//
+//        val executor = Executors.newSingleThreadExecutor()
+//        imageAnalyzer = ImageAnalysis(imageAnalysisConfig).apply {
+//            setAnalyzer(executor, ImageAnalysis.Analyzer { image, rotationDegrees ->
+//
+//            })
+//        }
+//    }
+//
+//    private fun bindImageCaptureUseCase(){
+//        val metrics = DisplayMetrics().also { viewFinder.display.getRealMetrics(it) }
+//        val screenAspectRatio = Rational(metrics.widthPixels, metrics.heightPixels)
+//        Log.d(TAG, "Screen metrics: ${metrics.widthPixels} x ${metrics.heightPixels}")
+//
+//        val imageCaptureConfig = ImageCaptureConfig.Builder().apply {
+//            setLensFacing(CameraX.LensFacing.BACK) // CameraX.LensFacing.BACK or FRONT
+//            setCaptureMode(ImageCapture.CaptureMode.MIN_LATENCY) // MIN_LATENCY or MAX_QUALITY
+////            setTargetResolution(Size(metrics.widthPixels, metrics.heightPixels)) // setTargetResolution or setTargetAspectRatio. it is changed at this version
+//
+//            setTargetResolution(Size(600,800)) // setTargetResolution or setTargetAspectRatio. it is changed at this version
+//            setTargetRotation(viewFinder.display.rotation)
+//        }.build()
+//        imageCapture = ImageCapture(imageCaptureConfig)
+//    }
 
     companion object {
         private const val FILENAME = "yyyy-MM-dd-HH-mm-ss-SSS"
@@ -358,6 +452,9 @@ class CameraFragment : Fragment() {
         /** Milliseconds used for UI animations */
         private const val ANIMATION_FAST_MILLIS = 50L
         private const val ANIMATION_SLOW_MILLIS = 100L
+
+        private const val RATIO_4_3_VALUE = 4.0 / 3.0
+        private const val RATIO_16_9_VALUE = 16.0 / 9.0
 
         /** Helper function used to create a timestamped file */
         private fun createFile(baseFolder: File, format: String, extension: String) =
