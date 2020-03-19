@@ -168,9 +168,7 @@ class CameraFragment : Fragment() {
                                 Log.e(TAG, "result is $it")
                                 result = it
                                 CoroutineScope(Dispatchers.Main).launch {
-                                    fragmentManager?.let {
-                                        ResultFragment.show(it, result)
-                                    }
+                                    ResultFragment.show(childFragmentManager, result)
                                 }
                             }
                         }
