@@ -12,6 +12,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.ImageButton
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -96,6 +97,7 @@ class CameraFragment : Fragment() {
         super.onConfigurationChanged(newConfig)
         updateCameraUi()
     }
+    private var isTorchOpen = false
 
     private var result = ""
 
@@ -107,6 +109,17 @@ class CameraFragment : Fragment() {
 
         container.findViewById<ImageButton>(R.id.btn_capture).setOnClickListener {
             takePicture()
+        }
+
+        container.findViewById<Button>(R.id.btnTorch).setOnClickListener {
+            isTorchOpen = if(isTorchOpen) {
+                camera?.cameraControl?.enableTorch(true)
+                false
+            } else {
+                camera?.cameraControl?.enableTorch(false)
+                true
+            }
+
         }
     }
 
