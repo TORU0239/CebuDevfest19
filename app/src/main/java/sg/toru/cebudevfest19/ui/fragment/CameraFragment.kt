@@ -37,9 +37,6 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-/**
- * A simple [Fragment] subclass.
- */
 class CameraFragment : Fragment() {
     private val TAG = "CameraFragment"
 
@@ -123,42 +120,6 @@ class CameraFragment : Fragment() {
         }
     }
 
-    private fun oldTakePicture() {
-        //            imageCapture?.let { capture ->
-//                val file = createFile(getOutputDirectory(context!!), FILENAME, PHOTO_EXTENSION)
-//                capture.takePicture(file, ImageCapture.Metadata(), executor, object: ImageCapture.OnImageSavedListener {
-//                    override fun onImageSaved(file: File) {
-//                        lifecycleScope.launch(Dispatchers.IO) {
-//                            val bitmap = decodeBitmap(file)
-//                            imageClassifier.analyze(bitmap){
-//                                Log.e(TAG, "result is $it")
-//                                result = it
-//                                CoroutineScope(Dispatchers.Main).launch {
-//                                    fragmentManager?.let {
-//                                        ResultFragment.show(it, result)
-//                                    }
-//                                }
-//                            }
-//                        }
-//                    }
-//
-//                    override fun onError(
-//                        imageCaptureError: ImageCapture.ImageCaptureError,
-//                        message: String,
-//                        cause: Throwable?
-//                    ) {
-//                        cause?.printStackTrace()
-//                    }
-//                })
-//
-//                container.postDelayed({
-//                    container.foreground = ColorDrawable(Color.WHITE)
-//                    container.postDelayed(
-//                        { container.foreground = null }, ANIMATION_FAST_MILLIS)
-//                }, ANIMATION_SLOW_MILLIS)
-//            }
-    }
-    
     private fun takePicture() {
         imageCapture?.let { imageCapture ->
             val file = createFile(getOutputDirectory(context!!), FILENAME, PHOTO_EXTENSION)
@@ -206,9 +167,6 @@ class CameraFragment : Fragment() {
         fragmentManager?.let {
             ResultFragment.dismiss(it)
         }
-//        if(preview != null && imageCapture != null && imageAnalyzer != null){
-//            CameraX.bindToLifecycle(viewLifecycleOwner, preview, imageCapture, imageAnalyzer)
-//        }
     }
 
     override fun onDestroyView() {
@@ -392,72 +350,7 @@ class CameraFragment : Fragment() {
                 e.printStackTrace()
             }
         }, ContextCompat.getMainExecutor(requireContext()))
-
-        // That's all!! by doing this, CameraX can follow UI Lifecycle.
-//        CameraX.bindToLifecycle(activity, preview, imageCapture, imageAnalyzer)
     }
-
-//    private fun bindPreviewUseCase(){
-//        val metrics = DisplayMetrics().also { viewFinder.display.getRealMetrics(it) }
-//        val screenAspectRatio = Rational(metrics.widthPixels, metrics.heightPixels)
-//        Log.d(TAG, "Screen metrics: ${metrics.widthPixels} x ${metrics.heightPixels}")
-//
-//        val previewConfig = PreviewConfig.Builder().apply {
-//            setLensFacing(CameraX.LensFacing.BACK)
-//            setTargetResolution(Size(metrics.widthPixels,metrics.heightPixels))
-//            setTargetRotation(viewFinder.display.rotation)
-//        }.build()
-//
-//        preview = Preview(previewConfig)
-//
-//        preview?.setOnPreviewOutputUpdateListener {
-//            val parent = viewFinder.parent as ViewGroup
-//            parent.removeView(viewFinder)
-//            parent.addView(viewFinder, 0)
-//            viewFinder.surfaceTexture = it.surfaceTexture
-//            updateTransform()
-//        }
-//    }
-//
-//    private fun bindImageAnalysisUseCase(){
-//        val metrics = DisplayMetrics().also { viewFinder.display.getRealMetrics(it) }
-//        val screenAspectRatio = Rational(metrics.widthPixels, metrics.heightPixels)
-//        Log.d(TAG, "Screen metrics: ${metrics.widthPixels} x ${metrics.heightPixels}")
-//        val imageAnalysisConfig = ImageAnalysisConfig.Builder().apply {
-//            setLensFacing(CameraX.LensFacing.BACK)
-//            setImageReaderMode(ImageAnalysis.ImageReaderMode.ACQUIRE_LATEST_IMAGE)
-//            setTargetRotation(viewFinder.display.rotation)
-//        }.build()
-//
-//
-//        // This is changed API at Alpha06. you were only supposed to declare Analyzer itself.
-//        // but from alpha, we have to generate and put executor into setAnalyzer.
-//        // What is ImageProxy?
-//        // What is Analyzer?
-//
-//        val executor = Executors.newSingleThreadExecutor()
-//        imageAnalyzer = ImageAnalysis(imageAnalysisConfig).apply {
-//            setAnalyzer(executor, ImageAnalysis.Analyzer { image, rotationDegrees ->
-//
-//            })
-//        }
-//    }
-//
-//    private fun bindImageCaptureUseCase(){
-//        val metrics = DisplayMetrics().also { viewFinder.display.getRealMetrics(it) }
-//        val screenAspectRatio = Rational(metrics.widthPixels, metrics.heightPixels)
-//        Log.d(TAG, "Screen metrics: ${metrics.widthPixels} x ${metrics.heightPixels}")
-//
-//        val imageCaptureConfig = ImageCaptureConfig.Builder().apply {
-//            setLensFacing(CameraX.LensFacing.BACK) // CameraX.LensFacing.BACK or FRONT
-//            setCaptureMode(ImageCapture.CaptureMode.MIN_LATENCY) // MIN_LATENCY or MAX_QUALITY
-////            setTargetResolution(Size(metrics.widthPixels, metrics.heightPixels)) // setTargetResolution or setTargetAspectRatio. it is changed at this version
-//
-//            setTargetResolution(Size(600,800)) // setTargetResolution or setTargetAspectRatio. it is changed at this version
-//            setTargetRotation(viewFinder.display.rotation)
-//        }.build()
-//        imageCapture = ImageCapture(imageCaptureConfig)
-//    }
 
     companion object {
         private const val FILENAME = "yyyy-MM-dd-HH-mm-ss-SSS"
