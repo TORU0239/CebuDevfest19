@@ -325,7 +325,7 @@ class CameraFragment : Fragment() {
             // Image Analysis
             imageAnalyzer = ImageAnalysis.Builder()
                     // by Google's guideline
-                .setTargetResolution(Size(720, 1280))
+//                .setTargetResolution(Size(720, 1280))
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST) // non-blocking mode can be enabled by this line
                     // end
                 .setTargetAspectRatio(screenAspectRatio)
