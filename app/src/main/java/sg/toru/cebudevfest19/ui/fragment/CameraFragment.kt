@@ -9,6 +9,7 @@ import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
+import android.util.Size
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -22,6 +23,7 @@ import androidx.core.content.ContextCompat
 import androidx.exifinterface.media.ExifInterface
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -109,6 +111,22 @@ class CameraFragment : Fragment() {
         }
 
         container.findViewById<Button>(R.id.btnTorch).setOnClickListener {
+
+//            camera?.cameraInfo?.let {
+//                it.sensorRotationDegrees
+//                it.torchState
+//                it.zoomState
+//                it.hasFlashUnit()
+//            }
+//
+//            camera?.cameraControl?.let {
+//                it.enableTorch(true)
+//                it.setLinearZoom(0.5F)
+//                it.setZoomRatio(0.5F)
+//                it.startFocusAndMetering()
+//                it.cancelFocusAndMetering()
+//            }
+
             isTorchOpen = if(isTorchOpen) {
                 camera?.cameraControl?.enableTorch(true)
                 false
@@ -272,7 +290,7 @@ class CameraFragment : Fragment() {
 
         // CameraProvider to the LifecycleOwner
         val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
+        val cameraProviderFuture:ListenableFuture<ProcessCameraProvider> = ProcessCameraProvider.getInstance(requireContext())
 
         cameraProviderFuture.addListener(Runnable {
             // Initializing Camera Provider
@@ -283,7 +301,9 @@ class CameraFragment : Fragment() {
                 .setTargetAspectRatio(screenAspectRatio)
                 .setTargetRotation(rotation)
                 .build()
-            preview?.setSurfaceProvider(viewFinder.previewSurfaceProvider)
+
+            // beta-01?
+//            preview?.setSurfaceProvider(viewFinder.previewSurfaceProvider)
 
             // Old Preview
 //            val previewConfig = PreviewConfig.Builder().apply {
@@ -304,9 +324,16 @@ class CameraFragment : Fragment() {
 
             // Image Analysis
             imageAnalyzer = ImageAnalysis.Builder()
+                    // by Google's guideline
+                .setTargetResolution(Size(720, 1280))
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST) // non-blocking mode can be enabled by this line
+                    // end
                 .setTargetAspectRatio(screenAspectRatio)
                 .setTargetRotation(rotation)
                 .build()
+            imageAnalyzer?.setAnalyzer(executor, ImageAnalysis.Analyzer { image ->
+                val rotationDegrees = image.imageInfo.rotationDegrees
+            })
 
 
             // Old Image Analysis
@@ -346,6 +373,8 @@ class CameraFragment : Fragment() {
 
             try {
                 camera = cameraProvider.bindToLifecycle(viewLifecycleOwner, cameraSelector, preview, imageCapture, imageAnalyzer)
+                // beta-02?
+                preview?.setSurfaceProvider(viewFinder.createSurfaceProvider(camera?.cameraInfo))
             } catch (e:Exception) {
                 e.printStackTrace()
             }
