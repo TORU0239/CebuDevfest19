@@ -111,22 +111,6 @@ class CameraFragment : Fragment() {
         }
 
         container.findViewById<Button>(R.id.btnTorch).setOnClickListener {
-
-//            camera?.cameraInfo?.let {
-//                it.sensorRotationDegrees
-//                it.torchState
-//                it.zoomState
-//                it.hasFlashUnit()
-//            }
-//
-//            camera?.cameraControl?.let {
-//                it.enableTorch(true)
-//                it.setLinearZoom(0.5F)
-//                it.setZoomRatio(0.5F)
-//                it.startFocusAndMetering()
-//                it.cancelFocusAndMetering()
-//            }
-
             isTorchOpen = if(isTorchOpen) {
                 camera?.cameraControl?.enableTorch(true)
                 false
@@ -134,7 +118,6 @@ class CameraFragment : Fragment() {
                 camera?.cameraControl?.enableTorch(false)
                 true
             }
-
         }
     }
 
